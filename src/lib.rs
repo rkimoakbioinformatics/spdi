@@ -4,6 +4,18 @@
 // 
 // To obtain a commercial license, please contact info@oakbioinformatics.com.
 
+//! Example:
+//!
+//! ```
+//! use anyhow::Result;
+//! 
+//! fn example() -> Result<String> {
+//!     let s = spdi::SPDI::new("path/to/2bit/file")?;
+//!     let spdi_string = s.get_spdi_string("chr1", 99092, "C", "CT")?;
+//!     println!("{}", spdi_string);
+//! }
+//! ```
+
 use anyhow::Result;
 use noodles::vcf::record::reference_bases::Base;
 mod error;
