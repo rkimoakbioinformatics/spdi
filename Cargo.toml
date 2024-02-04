@@ -5,11 +5,11 @@ authors = ["Ryangguk Kim <rkim@oakbioinformatics.com>"]
 edition = "2021"
 description = "SPDI is a format to describe a genomic variant. This crate provides a library to get an SPDI format representation of a variant and a command-line utility which adds SPDI format output to an input VCF file."
 readme = "README.md"
+repository = "https://github.com/rkimoakbioinformatics/spdi"
 homepage = "https://github.com/rkimoakbioinformatics/spdi"
 license-file = "LICENSE"
 keywords = ["bioinformatics", "genomics", "spdi", "vcf"]
 categories = ["command-line-utilities", "science"]
-publish = ["spdi"]
 
 [[bin]]
 name = "spdi"
