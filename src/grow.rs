@@ -7,6 +7,7 @@
 use anyhow::Result;
 use crate::error::{InvalidPosition, NoNonRepeat, NotIndel};
 use crate::util::is_base_same_as_char;
+use crate::Base;
 
 static GROW_RIGHT_MAX: usize = 30;
 
