@@ -1,6 +1,6 @@
 [package]
 name = "spdi"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Ryangguk Kim <rkim@oakbioinformatics.com>"]
 edition = "2021"
 description = "SPDI is a format to describe a genomic variant. This crate provides a library to get an SPDI format representation of a variant and a command-line utility which adds SPDI format output to an input VCF file."

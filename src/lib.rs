@@ -17,7 +17,6 @@
 //! ```
 
 use anyhow::Result;
-use noodles::vcf::record::reference_bases::Base;
 mod error;
 mod util;
 mod trim;
@@ -26,6 +25,8 @@ mod tests;
 use trim::{trim_left, trim_right};
 use grow::Grower;
 use util::{get_bases_of_string, get_string_of_bases};
+use noodles::vcf::record::reference_bases::Base;
+pub use noodles::vcf;
 
 pub struct SPDI {
     grower: Grower,

@@ -5,7 +5,6 @@
 // To obtain a commercial license, please contact info@oakbioinformatics.com.
 
 use anyhow::Result;
-use noodles::vcf::record::reference_bases::Base;
 use crate::error::{InvalidPosition, NoNonRepeat, NotIndel};
 use crate::util::is_base_same_as_char;
 
