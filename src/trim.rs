@@ -1,7 +1,7 @@
 // Copyright Ryangguk Kim @ Oak Bioinformatics, LLC
-// 
-// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use. 
-// 
+//
+// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use.
+//
 // To obtain a commercial license, please contact info@oakbioinformatics.com.
 
 use noodles::vcf::record::reference_bases::Base;
@@ -61,4 +61,3 @@ pub fn trim_right(
     }
     (new_ref_end, new_alt_end)
 }
-

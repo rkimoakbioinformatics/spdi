@@ -1,13 +1,13 @@
 // Copyright Ryangguk Kim @ Oak Bioinformatics, LLC
-// 
-// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use. 
-// 
+//
+// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use.
+//
 // To obtain a commercial license, please contact info@oakbioinformatics.com.
 
-use clap::Parser;
-use std::io::BufRead;
-use lazy_static::lazy_static;
 use ahash::HashMap;
+use clap::Parser;
+use lazy_static::lazy_static;
+use std::io::BufRead;
 mod error;
 use spdi::SPDI;
 
@@ -481,7 +481,7 @@ fn process_variant(variant: &String, spdi: &mut SPDI) {
         eprintln!("\nWrong input format: [{}]\n", variant);
         std::process::exit(1);
     }
-    let chrom: String = words[0].into();
+    let chrom: &[u8] = words[0].as_bytes();
     let pos_r = words[1].parse::<usize>();
     let pos: usize;
     match pos_r {
@@ -491,8 +491,8 @@ fn process_variant(variant: &String, spdi: &mut SPDI) {
             std::process::exit(1);
         }
     }
-    let ref_bases_s: String = words[2].into();
-    let alt_bases_s: String = words[3].into();
+    let ref_bases_s: &[u8] = words[2].as_bytes();
+    let alt_bases_s: &[u8] = words[3].as_bytes();
     let ret = spdi.get_spdi_string(&chrom, pos, &ref_bases_s, &alt_bases_s);
     match ret {
         Err(e) => {
@@ -551,20 +551,22 @@ fn process_input_file(input_file: &String, spdi: &mut SPDI) {
         }
         let chrom_s = words[0];
         let chrom_1st_c: char = chrom_s.chars().next().unwrap();
-        let chrom: String;
+        let chrom: &[u8];
+        let new_chrom: String;
         if (chrom_1st_c >= '1' && chrom_1st_c <= '9') || chrom_1st_c == 'X' || chrom_1st_c == 'Y' {
-            chrom = format!("chr{}", chrom_s);
+            new_chrom = format!("chr{}", chrom_s);
+            chrom = new_chrom.as_bytes();
         } else if chrom_1st_c == 'M' {
-            chrom = "chrM".to_string();
+            chrom = "chrM".as_bytes();
         } else {
             let chrom_o = CHROMS.get(&chrom_s);
             match chrom_o {
                 None => {
                     eprintln!("Chromosome [{}] not supported: {}", chrom_s, line);
                     continue;
-                },
+                }
                 Some(v) => {
-                    chrom = v.to_string();
+                    chrom = v.as_bytes();
                 }
             }
         }
@@ -580,11 +582,11 @@ fn process_input_file(input_file: &String, spdi: &mut SPDI) {
                 pos = v;
             }
         }
-        let ref_base = words[3];
+        let ref_base: &[u8] = words[3].as_bytes();
         let alt_bases = words[4].split(",");
         let mut spdi_strings: Vec<String> = Vec::with_capacity(4);
         for alt_base in alt_bases {
-            match spdi.get_spdi_string(&chrom, pos, ref_base, alt_base) {
+            match spdi.get_spdi_string(&chrom, pos, ref_base, alt_base.as_bytes()) {
                 Err(e) => {
                     eprintln!("{}: {}", e, line);
                     spdi_strings.push(".".to_string());

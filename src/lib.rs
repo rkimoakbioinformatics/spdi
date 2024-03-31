@@ -1,50 +1,82 @@
 // Copyright Ryangguk Kim @ Oak Bioinformatics, LLC
-// 
-// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use. 
-// 
+//
+// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use.
+//
 // To obtain a commercial license, please contact info@oakbioinformatics.com.
 
 //! Example:
 //!
 //! ```
-//! use anyhow::Result;
-//! 
-//! fn example() -> Result<String> {
-//!     let s = spdi::SPDI::new("path/to/2bit/file")?;
-//!     let spdi_string = s.get_spdi_string("chr1", 99092, "C", "CT")?;
-//!     println!("{}", spdi_string);
+//! use spdi::error::Error;
+//!
+//! fn example() -> Result<(), Error> {
+//!     let mut s = spdi::SPDI::new("path/to/2bit/file")?;
+//!     let spdi_string = s.get_spdi_string("chr1".as_bytes(), 99092, "C".as_bytes(),
+//!     "CT".as_bytes())?;
+//!     assert_eq!(spdi_string, "chr1:99092:C:CT");
+//!     Ok(())
 //! }
 //! ```
 
-use anyhow::Result;
-mod error;
-mod util;
-mod trim;
+pub mod error;
 mod grow;
 mod tests;
-use trim::{trim_left, trim_right};
+mod trim;
+pub mod util;
 use grow::Grower;
-use util::{get_bases_of_string, get_string_of_bases};
-use noodles::vcf::record::reference_bases::Base;
 pub use noodles::vcf;
+use oxygenv_base::types::Base;
+use trim::{trim_left, trim_right};
+use util::{get_bases_of_string, get_string_of_bases};
+use error::Error;
 
 pub struct SPDI {
     grower: Grower,
 }
 
 impl SPDI {
-    pub fn new(twobit_path: &str) -> Result<SPDI> {
+    pub fn new(twobit_path: &str) -> std::result::Result<SPDI, Error> {
         let grower = Grower::new(twobit_path)?;
         Ok(SPDI { grower })
     }
 
+    pub fn get_spdi_conversion_str(
+        &mut self,
+        chrom: &[u8],
+        pos: usize,
+        ref_bases: &[u8],
+        alt_bases: &[u8],
+    ) -> std::result::Result<(usize, Vec<Base>, Vec<Base>), Error> {
+        let ref_bases_v: Vec<Base>;
+        let alt_bases_v: Vec<Base>;
+        match util::get_bases_of_string(ref_bases) {
+            Ok(v) => ref_bases_v = v,
+            Err(e) => {
+                return Err(e);
+            }
+        }
+        let alt_bases_q: &[u8];
+        if alt_bases[0] == '.' as u8 {
+            alt_bases_q = ref_bases;
+        } else {
+            alt_bases_q = alt_bases;
+        }
+        match util::get_bases_of_string(alt_bases_q) {
+            Ok(v) => alt_bases_v = v,
+            Err(e) => {
+                return Err(e);
+            }
+        }
+        self.get_spdi_conversion(chrom, pos, &ref_bases_v, &alt_bases_v)
+    }
+
     pub fn get_spdi_conversion(
         &mut self,
-        chrom: &str,
+        chrom: &[u8],
         pos: usize,
         ref_bases: &Vec<Base>,
         alt_bases: &Vec<Base>,
-    ) -> Result<(usize, Vec<Base>, Vec<Base>)> {
+    ) -> std::result::Result<(usize, Vec<Base>, Vec<Base>), Error> {
         let ref_bases_len = ref_bases.len();
         let alt_bases_len = alt_bases.len();
         let ref_start = 0;
@@ -88,18 +120,29 @@ impl SPDI {
                         Ok((pos, base.clone(), base))
                     }
                     // insertion
-                    _ => self.grower.grow_pos_ref_alt(
-                        chrom,
-                        shrunk_pos,
-                        &shrunk_ref_bases,
-                        &shrunk_alt_bases,
-                    ),
+                    _ => {
+                        match self.grower.grow(
+                            chrom,
+                            shrunk_pos,
+                            &shrunk_ref_bases,
+                            &shrunk_alt_bases,
+                        ) {
+                            Ok(v) => Ok(v),
+                            Err(e) => {
+                                eprintln!(
+                                    "Error: {}. {}:{}:{:?}:{:?}",
+                                    e, std::str::from_utf8(chrom).unwrap(), pos, ref_bases, alt_bases
+                                );
+                                Err(e)
+                            }
+                        }
+                    }
                 }
             }
             _ => {
                 match shrunk_alt_bases_len {
                     // deletion
-                    0 => self.grower.grow_pos_ref_alt(
+                    0 => self.grower.grow(
                         chrom,
                         shrunk_pos,
                         &shrunk_ref_bases,
@@ -114,11 +157,11 @@ impl SPDI {
 
     pub fn get_spdi_string_components(
         &mut self,
-        chrom: &str,
+        chrom: &[u8],
         pos: usize,
         ref_bases: &Vec<Base>,
         alt_bases: &Vec<Base>,
-    ) -> Result<(usize, String, String)> {
+    ) -> Result<(usize, String, String), Error> {
         let new_pos: usize;
         let new_ref_bases: Vec<Base>;
         let new_alt_bases: Vec<Base>;
@@ -131,11 +174,11 @@ impl SPDI {
 
     pub fn get_spdi_string(
         &mut self,
-        chrom: &str,
+        chrom: &[u8],
         pos: usize,
-        ref_bases_s: &str,
-        alt_bases_s: &str,
-    ) -> Result<String> {
+        ref_bases_s: &[u8],
+        alt_bases_s: &[u8],
+    ) -> Result<String, Error> {
         let ref_bases = get_bases_of_string(ref_bases_s)?;
         let alt_bases = get_bases_of_string(alt_bases_s)?;
         let new_pos: usize;
@@ -145,7 +188,8 @@ impl SPDI {
             self.get_spdi_string_components(chrom, pos, &ref_bases, &alt_bases)?;
         Ok(format!(
             "{}:{}:{}:{}",
-            chrom, new_pos, new_ref_bases_s, new_alt_bases_s
+            std::str::from_utf8(chrom).unwrap(), new_pos, new_ref_bases_s, new_alt_bases_s
         ))
     }
 }
+

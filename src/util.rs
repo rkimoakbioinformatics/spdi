@@ -1,37 +1,41 @@
 // Copyright Ryangguk Kim @ Oak Bioinformatics, LLC
-// 
-// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use. 
-// 
+//
+// This software is available under a dual licensing model, offering users the choice between the Affero General Public License version 3 (AGPL-3) for open-source use and a commercial license for proprietary or commercial use.
+//
 // To obtain a commercial license, please contact info@oakbioinformatics.com.
 
-use crate::error;
-use anyhow::{Error, Result};
+use crate::error::Error;
 use noodles::vcf::record::reference_bases::Base;
 
-pub fn get_bases_of_string(s: &str) -> Result<Vec<Base>> {
+pub fn get_bases_of_string(s: &[u8]) -> Result<Vec<Base>, Error> {
     let mut bases: Vec<Base> = Vec::with_capacity(s.len());
-    for c in s.chars() {
-        let base = get_base_of_char(c)?;
-        match base {
-            None => {}
-            Some(v) => bases.push(v),
+    for c in s.iter() {
+        match get_base_of_char(c) {
+            Some(base) => bases.push(base),
+            None => {
+                return Err(Error::InvalidBase {
+                    base: c.to_string(),
+                });
+            }
         }
     }
     Ok(bases)
 }
 
-pub fn get_base_of_char(c: char) -> Result<Option<Base>> {
-    match c {
-        'A' => Ok(Some(Base::A)),
-        'T' => Ok(Some(Base::T)),
-        'G' => Ok(Some(Base::G)),
-        'C' => Ok(Some(Base::C)),
-        'N' => Ok(Some(Base::N)),
-        '-' => Ok(None),
-        _ => {
-            let e = error::InvalidBase { base: c.to_string() };
-            Err(Error::new(e))
-        }
+pub fn get_base_of_char(c: &u8) -> Option<Base> {
+    match *c as char {
+        'A' => Some(Base::A),
+        'T' => Some(Base::T),
+        'G' => Some(Base::G),
+        'C' => Some(Base::C),
+        'N' => None,
+        'a' => Some(Base::A),
+        't' => Some(Base::T),
+        'g' => Some(Base::G),
+        'c' => Some(Base::C),
+        'n' => None,
+        '-' => None,
+        _ => None,
     }
 }
 
@@ -45,7 +49,7 @@ pub fn get_char_of_base(base: &Base) -> char {
     }
 }
 
-pub fn get_string_of_bases(bases: &Vec<Base>) -> String {
+pub fn get_string_of_bases(bases: &[Base]) -> String {
     let bases_len = bases.len();
     match bases_len {
         0 => "-".to_string(),
@@ -89,9 +93,6 @@ pub fn is_base_same_as_char(base: &Base, c: char) -> bool {
                 false
             }
         }
-        _ => {
-            eprint!("Base error. base={:#?}", base);
-            false
-        }
+        Base::N => true,
     }
 }
