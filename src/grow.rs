@@ -7,16 +7,17 @@
 use crate::error::Error;
 use crate::util::is_base_same_as_char;
 use crate::Base;
+use std::path::PathBuf;
 
 static GROW_RIGHT_MAX: usize = 10000;
 
 pub struct Grower {
-    pub tb: twobit::TwoBitFile<std::io::BufReader<std::fs::File>>,
+    pub tb: twobit::TwoBitMemoryFile
 }
 
 impl Grower {
-    pub fn new(twobit_path: &str) -> Result<Grower, Error> {
-        match twobit::TwoBitFile::open(twobit_path) {
+    pub fn new(twobit_path: &PathBuf) -> Result<Grower, Error> {
+        match twobit::TwoBitFile::open_and_read(twobit_path) {
             Ok(tb) => Ok(Grower { tb }),
             Err(e) => Err(Error::TwoBitError(e)),
         }
@@ -26,12 +27,12 @@ impl Grower {
         &mut self,
         chrom: &[u8],
         pos: usize,
-        bases: &Vec<Base>,
-    ) -> Result<(usize, Vec<Base>), Error> {
+        bases: &[Base],
+    ) -> Result<(usize, Box<[Base]>), Error> {
         let bases_len = bases.len();
         let mut expansion: Vec<Base> = Vec::with_capacity(bases_len);
         match bases_len {
-            0 => Ok((pos, expansion)),
+            0 => Ok((pos, expansion.into_boxed_slice())),
             _ => {
                 // 0-based
                 let mut probe_start = pos;
@@ -42,7 +43,7 @@ impl Grower {
                 loop {
                     let frag = self.tb.read_sequence(chrom_str, probe_start - 1..probe_end - 1).unwrap_or("".to_string());
                     if frag.len() == 0 {
-                        return Ok((growth_end, expansion));
+                        return Ok((growth_end, expansion.into_boxed_slice()));
                     }
                     let check_len: usize = std::cmp::min(frag.len(), bases_len);
                     let mut chars = frag.chars();
@@ -81,7 +82,7 @@ impl Grower {
                         });
                     }
                 }
-                Ok((growth_end, expansion))
+                Ok((growth_end, expansion.into_boxed_slice()))
             }
         }
     }
@@ -90,17 +91,17 @@ impl Grower {
         &mut self,
         chrom: &[u8],
         pos: usize,
-        bases: &Vec<Base>,
-    ) -> Result<(usize, Vec<Base>), Error> {
+        bases: &[Base],
+    ) -> Result<(usize, Box<[Base]>), Error> {
         let bases_len = bases.len();
         let mut growth_start = pos;
         let mut expansion: Vec<Base> = Vec::with_capacity(bases_len);
         let mut probe_end = pos;
         if bases_len == 0 {
-            return Ok((growth_start, expansion));
+            return Ok((growth_start, expansion.into_boxed_slice()));
         }
         if probe_end <= 1 {
-            return Ok((growth_start, expansion));
+            return Ok((growth_start, expansion.into_boxed_slice()));
         }
         let mut probe_start: usize;
         if probe_end <= bases_len {
@@ -113,7 +114,7 @@ impl Grower {
             match self.tb.read_sequence(chrom_str, probe_start - 1..probe_end - 1) {
                 Ok(frag) => {
                     if frag.len() == 0 {
-                        return Ok((growth_start, expansion));
+                        return Ok((growth_start, expansion.into_boxed_slice()));
                     }
                     let mut chars = frag.chars().rev();
                     let mut bases_iter = bases.iter().rev();
@@ -142,7 +143,7 @@ impl Grower {
                         break;
                     }
                     if probe_start <= 1 || probe_start <= bases_len {
-                        return Ok((growth_start, expansion));
+                        return Ok((growth_start, expansion.into_boxed_slice()));
                     }
                     probe_end = probe_start;
                     if probe_end <= 1 {
@@ -163,20 +164,20 @@ impl Grower {
             }
         }
         expansion.reverse();
-        Ok((growth_start, expansion))
+        Ok((growth_start, expansion.into_boxed_slice()))
     }
 
     pub fn grow(
         &mut self,
         chrom: &[u8],
         pos: usize,
-        ref_bases: &Vec<Base>,
-        alt_bases: &Vec<Base>,
-    ) -> Result<(usize, Vec<Base>, Vec<Base>), Error> {
+        ref_bases: &[Base],
+        alt_bases: &[Base],
+    ) -> Result<(usize, Box<[Base]>, Box<[Base]>), Error> {
         let growth_left_start: usize;
         let growth_right_end: usize;
-        let growth_left_bases: Vec<Base>;
-        let growth_right_bases: Vec<Base>;
+        let growth_left_bases: Box<[Base]>;
+        let growth_right_bases: Box<[Base]>;
         let growth_right_size: usize;
         let ref_bases_len = ref_bases.len();
         let alt_bases_len = alt_bases.len();
@@ -240,7 +241,7 @@ impl Grower {
         new_alt_bases.extend(growth_left_bases.iter());
         new_alt_bases.extend(alt_bases.iter());
         new_alt_bases.extend(growth_right_bases.iter());
-        Ok((growth_left_start, new_ref_bases, new_alt_bases))
+        Ok((growth_left_start, new_ref_bases.into_boxed_slice(), new_alt_bases.into_boxed_slice()))
     }
 }
 
@@ -250,21 +251,23 @@ mod tests_grow {
 
     #[test]
     fn test_grow_left() {
-        let mut grower = Grower::new("/Users/rick/oxv/oakvar_devtool/maintenance/dbsnp-converter/module-make/hg38.2bit").unwrap();
+        let twobit_fname = std::env::var("TWOBIT_FNAME").unwrap();
+        let mut grower = Grower::new(&std::path::PathBuf::from(twobit_fname)).unwrap();
         let result = grower.grow_left("chr19_GL383575v2_alt".as_bytes(), 1, &vec![Base::C, Base::A, Base::C, Base::A]).unwrap();
-        assert_eq!(result, (1, vec![]));
+        assert_eq!(result, (1, vec![].into_boxed_slice()));
         let result = grower.grow_left("chr19_GL383575v2_alt".as_bytes(), 3, &vec![Base::A, Base::G, Base::C, Base::C]).unwrap();
-        assert_eq!(result, (3, vec![Base::C, Base::C]));
+        assert_eq!(result, (3, vec![Base::C, Base::C].into_boxed_slice()));
     }
 
     #[test]
     fn test_grow_right() {
-        let mut grower = Grower::new("/Users/rick/oxv/oakvar_devtool/maintenance/dbsnp-converter/module-make/hg38.2bit").unwrap();
+        let twobit_fname = std::env::var("TWOBIT_FNAME").unwrap();
+        let mut grower = Grower::new(&std::path::PathBuf::from(twobit_fname)).unwrap();
         let result = grower.grow_right("chr19_GL383576v1_alt".as_bytes(), 188023, &vec![Base::C, Base::A, Base::C, Base::A]).unwrap();
-        assert_eq!(result, (188023, vec![]));
+        assert_eq!(result, (188023, vec![].into_boxed_slice()));
         let result = grower.grow_right("chr19_GL383576v1_alt".as_bytes(), 188023, &vec![Base::T]).unwrap();
-        assert_eq!(result, (188023, vec![Base::T, Base::T]));
+        assert_eq!(result, (188023, vec![Base::T, Base::T].into_boxed_slice()));
         let result = grower.grow_right("chr19_GL383576v1_alt".as_bytes(), 188023, &vec![Base::T, Base::T, Base::T]).unwrap();
-        assert_eq!(result, (188023, vec![Base::T, Base::T]));
+        assert_eq!(result, (188023, vec![Base::T, Base::T].into_boxed_slice()));
     }
 }

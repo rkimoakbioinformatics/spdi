@@ -7,8 +7,8 @@
 use noodles::vcf::record::reference_bases::Base;
 
 pub fn trim_left(
-    ref_bases: &Vec<Base>,
-    alt_bases: &Vec<Base>,
+    ref_bases: &[Base],
+    alt_bases: &[Base],
     ref_start: usize,
     ref_end: usize,
     alt_start: usize,
@@ -35,8 +35,8 @@ pub fn trim_left(
 }
 
 pub fn trim_right(
-    ref_bases: &Vec<Base>,
-    alt_bases: &Vec<Base>,
+    ref_bases: &[Base],
+    alt_bases: &[Base],
     ref_start: usize,
     ref_end: usize,
     alt_start: usize,

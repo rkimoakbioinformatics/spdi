@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 use std::io::BufRead;
 mod error;
 use spdi::SPDI;
+use std::path::PathBuf;
 
 lazy_static! {
     static ref CHROMS: HashMap<&'static str, &'static str> = {
@@ -609,7 +610,8 @@ fn process_input_file(input_file: &String, spdi: &mut SPDI) {
 
 fn main() {
     let cli = Cli::parse();
-    let spdi_r = SPDI::new(&cli.twobit_path);
+    let twobit_path = PathBuf::from(&cli.twobit_path);
+    let spdi_r = SPDI::new(&twobit_path);
     let mut spdi: SPDI;
     match spdi_r {
         Err(_) => {

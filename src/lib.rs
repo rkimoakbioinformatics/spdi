@@ -25,17 +25,18 @@ mod trim;
 pub mod util;
 use grow::Grower;
 pub use noodles::vcf;
-use oxygenv_base::types::Base;
+pub type Base = vcf::record::reference_bases::base::Base;
 use trim::{trim_left, trim_right};
-use util::{get_bases_of_string, get_string_of_bases};
+use util::{get_bases_of_vu8, get_string_of_bases};
 use error::Error;
+use std::path::PathBuf;
 
 pub struct SPDI {
     grower: Grower,
 }
 
 impl SPDI {
-    pub fn new(twobit_path: &str) -> std::result::Result<SPDI, Error> {
+    pub fn new(twobit_path: &PathBuf) -> std::result::Result<SPDI, Error> {
         let grower = Grower::new(twobit_path)?;
         Ok(SPDI { grower })
     }
@@ -46,10 +47,10 @@ impl SPDI {
         pos: usize,
         ref_bases: &[u8],
         alt_bases: &[u8],
-    ) -> std::result::Result<(usize, Vec<Base>, Vec<Base>), Error> {
+    ) -> std::result::Result<(usize, Box<[Base]>, Box<[Base]>), Error> {
         let ref_bases_v: Vec<Base>;
         let alt_bases_v: Vec<Base>;
-        match util::get_bases_of_string(ref_bases) {
+        match util::get_bases_of_vu8(ref_bases) {
             Ok(v) => ref_bases_v = v,
             Err(e) => {
                 return Err(e);
@@ -61,7 +62,7 @@ impl SPDI {
         } else {
             alt_bases_q = alt_bases;
         }
-        match util::get_bases_of_string(alt_bases_q) {
+        match util::get_bases_of_vu8(alt_bases_q) {
             Ok(v) => alt_bases_v = v,
             Err(e) => {
                 return Err(e);
@@ -74,9 +75,9 @@ impl SPDI {
         &mut self,
         chrom: &[u8],
         pos: usize,
-        ref_bases: &Vec<Base>,
-        alt_bases: &Vec<Base>,
-    ) -> std::result::Result<(usize, Vec<Base>, Vec<Base>), Error> {
+        ref_bases: &[Base],
+        alt_bases: &[Base],
+    ) -> std::result::Result<(usize, Box<[Base]>, Box<[Base]>), Error> {
         let ref_bases_len = ref_bases.len();
         let alt_bases_len = alt_bases.len();
         let ref_start = 0;
@@ -104,10 +105,8 @@ impl SPDI {
             alt_start,
             new_alt_end,
         );
-        let shrunk_ref_bases: Vec<Base>;
-        let shrunk_alt_bases: Vec<Base>;
-        shrunk_ref_bases = ref_bases[new_ref_start..new_ref_end].to_vec();
-        shrunk_alt_bases = alt_bases[new_alt_start..new_alt_end].to_vec();
+        let shrunk_ref_bases = &ref_bases[new_ref_start..new_ref_end];
+        let shrunk_alt_bases = &alt_bases[new_alt_start..new_alt_end];
         let shrunk_pos = pos + new_ref_start;
         let shrunk_ref_bases_len = shrunk_ref_bases.len();
         let shrunk_alt_bases_len = shrunk_alt_bases.len();
@@ -116,16 +115,16 @@ impl SPDI {
                 match shrunk_alt_bases_len {
                     // same
                     0 => {
-                        let base = ref_bases[0..1].to_vec();
-                        Ok((pos, base.clone(), base))
+                        let base = &ref_bases[0..1];
+                        Ok((pos, base.to_vec().into_boxed_slice(), base.to_vec().into_boxed_slice()))
                     }
                     // insertion
                     _ => {
                         match self.grower.grow(
                             chrom,
                             shrunk_pos,
-                            &shrunk_ref_bases,
-                            &shrunk_alt_bases,
+                            shrunk_ref_bases,
+                            shrunk_alt_bases,
                         ) {
                             Ok(v) => Ok(v),
                             Err(e) => {
@@ -142,14 +141,23 @@ impl SPDI {
             _ => {
                 match shrunk_alt_bases_len {
                     // deletion
-                    0 => self.grower.grow(
+                    0 => match self.grower.grow(
                         chrom,
                         shrunk_pos,
-                        &shrunk_ref_bases,
-                        &shrunk_alt_bases,
-                    ),
+                        shrunk_ref_bases,
+                        shrunk_alt_bases,
+                    ) {
+                        Ok(v) => Ok(v),
+                        Err(e) => {
+                            eprintln!(
+                                "Error: {}. {}:{}:{:?}:{:?}",
+                                e, std::str::from_utf8(chrom).unwrap(), pos, ref_bases, alt_bases
+                            );
+                            Err(e)
+                        }
+                    },
                     // ambiguous
-                    _ => Ok((pos, shrunk_ref_bases, shrunk_alt_bases)),
+                    _ => Ok((pos, shrunk_ref_bases.to_vec().into_boxed_slice(), shrunk_alt_bases.to_vec().into_boxed_slice())),
                 }
             }
         }
@@ -163,8 +171,8 @@ impl SPDI {
         alt_bases: &Vec<Base>,
     ) -> Result<(usize, String, String), Error> {
         let new_pos: usize;
-        let new_ref_bases: Vec<Base>;
-        let new_alt_bases: Vec<Base>;
+        let new_ref_bases: Box<[Base]>;
+        let new_alt_bases: Box<[Base]>;
         (new_pos, new_ref_bases, new_alt_bases) =
             self.get_spdi_conversion(chrom, pos, ref_bases, alt_bases)?;
         let new_ref_bases_string = get_string_of_bases(&new_ref_bases);
@@ -179,8 +187,8 @@ impl SPDI {
         ref_bases_s: &[u8],
         alt_bases_s: &[u8],
     ) -> Result<String, Error> {
-        let ref_bases = get_bases_of_string(ref_bases_s)?;
-        let alt_bases = get_bases_of_string(alt_bases_s)?;
+        let ref_bases = get_bases_of_vu8(ref_bases_s)?;
+        let alt_bases = get_bases_of_vu8(alt_bases_s)?;
         let new_pos: usize;
         let new_ref_bases_s: String;
         let new_alt_bases_s: String;

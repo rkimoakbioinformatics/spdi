@@ -7,7 +7,7 @@
 use crate::error::Error;
 use noodles::vcf::record::reference_bases::Base;
 
-pub fn get_bases_of_string(s: &[u8]) -> Result<Vec<Base>, Error> {
+pub fn get_bases_of_vu8(s: &[u8]) -> Result<Vec<Base>, Error> {
     let mut bases: Vec<Base> = Vec::with_capacity(s.len());
     for c in s.iter() {
         match get_base_of_char(c) {
@@ -95,4 +95,19 @@ pub fn is_base_same_as_char(base: &Base, c: char) -> bool {
         }
         Base::N => true,
     }
+}
+
+pub fn get_bases_of_string(s: &str) -> Result<Box<[Base]>, Error> {
+    let mut bases: Vec<Base> = Vec::with_capacity(s.len());
+    for c in s.chars() {
+        match get_base_of_char(&(c as u8)) {
+            Some(base) => bases.push(base),
+            None => {
+                return Err(Error::InvalidBase {
+                    base: c.to_string(),
+                });
+            }
+        }
+    }
+    Ok(bases.into())
 }
